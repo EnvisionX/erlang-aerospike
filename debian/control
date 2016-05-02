@@ -1,0 +1,26 @@
+Source: erlang-aerospike
+Section: devel
+Priority: extra
+Maintainer: Aleksey Morarash <aleksey.morarash@gmail.com>
+Build-Depends: debhelper (>= 8.0.0), erlang-base, erlang-dev, erlang-tools,
+ erlang-edoc, erlang-eunit, erlang-dialyzer
+Standards-Version: 3.9.3
+Homepage: https://github.com/tuxofil/erlang-aerospike
+Vcs-Browser: https://github.com/tuxofil/erlang-aerospike
+Vcs-Git: https://github.com/tuxofil/erlang-aerospike.git
+
+Package: erlang-aerospike
+Architecture: all
+Depends: erlang-base
+Description: Erlang client for the Aerospike
+ Erlang client for the Aerospike.
+
+Package: erlang-aerospike-dev
+Architecture: all
+Description: Header files with Aerospike protocol definitions
+ Header files with Aerospike protocol definitions.
+
+Package: erlang-aerospike-doc
+Architecture: all
+Description: Aerospike Erlang client documentation.
+ Contains generated HTML documentation for the client source code.

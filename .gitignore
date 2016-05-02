@@ -1,0 +1,8 @@
+Emakefile
+.dialyzer_plt
+*.beam
+*.app
+*~
+erl_crash.dump
+debian/install
+debian/erlang-aerospike-dev.install

@@ -1,0 +1,21 @@
+#!/usr/bin/make -f
+# -*- makefile -*-
+
+# This has to be exported to make some magic below work.
+export DH_OPTIONS
+
+%:
+	dh $@
+
+override_dh_auto_build:
+	$(MAKE) eunit
+	$(MAKE) clean compile html
+
+override_dh_auto_test:
+
+VERSION = $(shell awk '{gsub("[()]","",$$2);print$$2;exit}' debian/changelog)
+override_dh_install:
+	sed 's/{{VERSION}}/$(VERSION)/' debian/install.in > debian/install
+	sed 's/{{VERSION}}/$(VERSION)/' debian/erlang-aerospike-dev.install.in > \
+	    debian/erlang-aerospike-dev.install
+	dh_install

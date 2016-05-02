@@ -1,0 +1,13 @@
+@author Aleksey Morarash <aleksey.morarash@gmail.com>
+@copyright 2016 Aleksey Morarash <aleksey.morarash@gmail.com>
+@version {{VERSION}}
+@title Welcome to Erlang Client to the Aerospike.
+@doc == Contents ==
+
+<ol>
+ <li>{@section Summary}</li>
+</ol>
+
+== Summary ==
+
+Provides an Erlang API to the Aerospike node.

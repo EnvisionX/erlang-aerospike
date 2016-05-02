@@ -1,0 +1,15 @@
+%%% @author Aleksey Morarash <aleksey.morarash@gmail.com>
+%%% @since 2 May 2016
+%%% @copyright 2016, Aleksey Morarash <aleksey.morarash@gmail.com>
+%%% @doc aerospike application resource file
+
+{application, aerospike,
+ [
+  {description,  "Aerospike Client"},
+  {vsn,          "{{VERSION}}"},
+  {modules,      [aerospike,
+                  aerospike_socket,
+                  aerospike_encoder,
+                  aerospike_decoder
+                 ]}
+ ]}.

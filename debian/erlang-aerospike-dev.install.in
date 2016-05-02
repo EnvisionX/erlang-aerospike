@@ -1,0 +1,1 @@
+include/*.hrl /usr/lib/erlang/lib/aerospike-{{VERSION}}/include
