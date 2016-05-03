@@ -129,7 +129,8 @@
                  Options :: options()) ->
                         {ok, Pid :: pid()} | {error, Reason :: any()}.
 start_link(Host, Port, Options) ->
-    gen_server:start_link(?MODULE, _Args = {Host, Port, Options}, []).
+    Caller = self(),
+    gen_server:start_link(?MODULE, _Args = {Host, Port, Options, Caller}, []).
 
 %% @doc Return 'true' if connection is established and 'false' otherwise.
 -spec connected(pid()) -> boolean().
@@ -209,14 +210,16 @@ req(Pid, Request, Timeout) ->
     reconnect :: boolean(),
     listener :: pid() | atom(),
     opts = [] :: options(),
-    socket :: port()
+    socket :: port(),
+    caller :: pid(),
+    caller_mon :: reference()
    }).
 
 %% @hidden
--spec init({host(), inet:port_number(), options()}) ->
+-spec init({host(), inet:port_number(), options(), Caller :: pid()}) ->
                   {ok, InitialState :: #state{}} |
                   {stop, Reason :: any()}.
-init({Host, Port, Options}) ->
+init({Host, Port, Options, Caller}) ->
     ?trace("init(~9999p)", [{Host, Port, Options}]),
     Reconnect = lists:member(reconnect, Options),
     SyncStart = lists:member(sync_start, Options),
@@ -226,7 +229,10 @@ init({Host, Port, Options}) ->
            port = Port,
            reconnect = Reconnect,
            listener = proplists:get_value(state_listener, Options),
-           opts = Options},
+           opts = Options,
+           caller = Caller,
+           caller_mon = monitor(process, Caller)
+          },
     if Reconnect andalso not SyncStart ->
             %% schedule reconnect in background
             ok = reconnect(self()),
@@ -306,6 +312,10 @@ handle_info({tcp, Socket, _Data}, State)
             {stop, Reason, disconnect(State)}
     end;
 handle_info(?CLOSE, State) ->
+    {stop, normal, disconnect(State)};
+handle_info({'DOWN', CallerMon, process, Caller, _Reason}, State)
+  when CallerMon == State#state.caller_mon, Caller == State#state.caller ->
+    ?trace("owner process terminated: ~9999p", [_Reason]),
     {stop, normal, disconnect(State)};
 handle_info(_Request, State) ->
     ?trace("unknown info message:~n\t~p", [_Request]),
