@@ -58,7 +58,7 @@ encode(Fields, Ops, Options) ->
 
 %% @doc Encode info{1,2,3} flag set.
 %% Helper for the msg/5 API call.
--spec encode_flags(Flags :: [atom()], Spec :: {atom(), Weight :: pos_integer()}) ->
+-spec encode_flags(Flags :: [atom()], Spec :: [{atom(), Weight :: pos_integer()}]) ->
                           binary().
 encode_flags(Flags, Spec) ->
     Packed =

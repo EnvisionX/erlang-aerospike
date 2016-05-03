@@ -184,10 +184,8 @@ msg(Pid, Fields, Ops, Options, Timeout) ->
 
 %% @hidden
 %% @doc Send raw request to the Aerospike node, receive the raw response.
--spec req(pid(),
-          Request :: binary(),
-          Timeout :: timeout()) ->
-                 {ok, ResponsePayload :: tuple()} | {error, Reason :: any()}.
+-spec req(pid(), Request :: binary(), Timeout :: timeout()) ->
+                 {ok, ResponsePayload :: binary()} | {error, Reason :: any()}.
 req(Pid, Request, Timeout) ->
     case gen_server:call(Pid, ?REQ(Request, Timeout), infinity) of
         {ok, _Encoded} = Ok ->
