@@ -291,9 +291,18 @@ handle_info({tcp_error, Socket, Reason}, State)
             {stop, {tcp_error, Reason}, State1}
     end;
 handle_info({tcp, Socket, _Data}, State)
-  when Socket == State#state.socket ->
+  when Socket == State#state.socket, Socket /= undefined ->
     ?trace("unexpected socket data: ~9999p", [_Data]),
-    {noreply, State};
+    case inet:setopts(Socket, [{active, once}]) of
+        ok ->
+            {noreply, State};
+        {error, _Reason} when State#state.reconnect ->
+            ?trace("disconnected: ~9999p", [_Reason]),
+            ok = reconnect(self()),
+            {noreply, disconnect(State)};
+        {error, Reason} ->
+            {stop, Reason, disconnect(State)}
+    end;
 handle_info(?CLOSE, State) ->
     {stop, normal, disconnect(State)};
 handle_info(_Request, State) ->
@@ -307,24 +316,37 @@ handle_info(_Request, State) ->
 handle_call(?REQ(_, _), _From, #state{socket = undefined} = State) ->
     {reply, {error, not_connected}, State};
 handle_call(?REQ(Request, Timeout), _From, State) ->
-    Reply =
-        try
-            handle_req(State, Request, Timeout)
-        catch
-            ExcType:ExcReason ->
-                {error,
-                 {crashed,
-                  [{type, ExcType},
-                   {reason, ExcReason},
-                   {stacktrace, erlang:get_stacktrace()},
-                   {request, Request}]}}
-        end,
-    case Reply of
-        {error, _} ->
+    try handle_req(State, Request, Timeout) of
+        {ok, _Response} = Ok ->
+            {reply, Ok, State};
+        {error, closed} when State#state.reconnect ->
+            ?trace("connection lost. reconnecting...", []),
+            State1 = disconnect(State),
+            case connect(State1) of
+                {ok, Socket} ->
+                    State2 = State1#state{socket = Socket},
+                    case handle_req(State2, Request, Timeout) of
+                        {ok, _Response} = Ok ->
+                            {reply, Ok, State2};
+                        {error, _Reason} = Error ->
+                            {reply, Error, State2}
+                    end;
+                {error, _Reason} = Error ->
+                    {reply, Error, State1}
+            end;
+        {error, Reason} ->
             ok = reconnect(self()),
-            {reply, Reply, disconnect(State)};
-        _ ->
-            {reply, Reply, State}
+            {reply, {error, Reason}, disconnect(State)}
+    catch
+        ExcType:ExcReason ->
+            FinalReason =
+                {crashed,
+                 [{type, ExcType},
+                  {reason, ExcReason},
+                  {stacktrace, erlang:get_stacktrace()},
+                  {request, Request}]},
+            ok = reconnect(self()),
+            {reply, {error, FinalReason}, disconnect(State)}
     end;
 handle_call(_Request, _From, State) ->
     ?trace("unknown call from ~w:~n\t~p", [_From, _Request]),
@@ -364,7 +386,7 @@ disconnect(State) ->
 connect(State) ->
     Host = State#state.host,
     Port = State#state.port,
-    Options = [binary, {active, false}, {keepalive, true}],
+    Options = [binary, {active, once}, {keepalive, true}],
     ConnectTimeout =
         proplists:get_value(
           connect_timeout, State#state.opts, ?CONNECT_TIMEOUT),
@@ -408,33 +430,52 @@ notify(#state{listener = Listener}, Message) ->
                         {ok, Response :: binary()} | {error, Reason :: any()}.
 handle_req(State, Request, Timeout) ->
     Socket = State#state.socket,
-    <<?VERSION:8, MsgType:8, _/binary>> = Request,
-    ?trace("sending ~w bytes to ~9999p:~w",
-           [size(Request), State#state.host, State#state.port]),
-    case gen_tcp:send(Socket, Request) of
+    case inet:setopts(Socket, [{active, false}]) of
         ok ->
-            case gen_tcp:recv(Socket, 8, Timeout) of
-                {ok, <<?VERSION:8, MsgType:8, RespLen:48/big-unsigned>>} ->
-                    ?trace("got header. waiting for payload of size ~w...",
-                           [RespLen]),
-                    case gen_tcp:recv(Socket, RespLen, Timeout) of
-                        {ok, Resp} when size(Resp) == RespLen ->
-                            ?trace("encoded response: ~s",
-                                   [base64:encode(zlib:gzip(Resp))]),
-                            {ok, Resp};
-                        {ok, BadResp} ->
-                            {error, {incomplete_response, BadResp}};
+            <<?VERSION:8, MsgType:8, _/binary>> = Request,
+            ?trace("sending ~w bytes to ~9999p:~w",
+                   [size(Request), State#state.host, State#state.port]),
+            case gen_tcp:send(Socket, Request) of
+                ok ->
+                    case gen_tcp:recv(Socket, 8, Timeout) of
+                        {ok, <<?VERSION:8, MsgType:8, RespLen:48/big-unsigned>>} ->
+                            ?trace("got header. waiting for payload of size ~w...",
+                                   [RespLen]),
+                            case gen_tcp:recv(Socket, RespLen, Timeout) of
+                                {ok, Resp} when size(Resp) == RespLen ->
+                                    ?trace("encoded response: ~s",
+                                           [base64:encode(zlib:gzip(Resp))]),
+                                    case inet:setopts(Socket, [{active, once}]) of
+                                        ok ->
+                                            ok;
+                                        {error, _Reason} ->
+                                            ?trace("failed to restore active mode"
+                                                   " for the socket: ~9999p", [_Reason]),
+                                            if State#state.reconnect ->
+                                                    ok = reconnect(self());
+                                               true ->
+                                                    ok
+                                            end
+                                    end,
+                                    {ok, Resp};
+                                {ok, BadResp} ->
+                                    {error, {incomplete_response, BadResp}};
+                                {error, Reason} ->
+                                    {error, {payload_recv, Reason}}
+                            end;
+                        {ok, BadHeader} ->
+                            {error, {bad_resp_header, BadHeader}};
+                        {error, closed} = Error ->
+                            Error;
                         {error, Reason} ->
-                            {error, {payload_recv, Reason}}
+                            {error, {resp_header_recv, Reason}}
                     end;
-                {ok, BadHeader} ->
-                    {error, {bad_resp_header, BadHeader}};
                 {error, Reason} ->
-                    {error, {resp_header_recv, Reason}}
+                    ?trace("failed to send request: ~9999p", [Reason]),
+                    {error, Reason}
             end;
-        {error, Reason} ->
-            ?trace("failed to send request: ~9999p", [Reason]),
-            {error, Reason}
+        {error, _Reason} = Error ->
+            Error
     end.
 
 %% ----------------------------------------------------------------------
