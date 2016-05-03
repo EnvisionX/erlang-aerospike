@@ -514,15 +514,19 @@ state_listening_test_() ->
                                                     {state_listener, self()}]),
              receive {?MODULE, S, connected} -> ok
              after 1000 -> throw(no_connect_notify) end,
+             ?assert(connected(S)),
              ServerName ! cut,
              receive {?MODULE, S, disconnected} -> ok
              after 1000 -> throw(no_disconnect_notify) end,
+             ?assertNot(connected(S)),
              %% wait until the client reconnects
              receive {?MODULE, S, connected} -> ok
              after 1000 -> throw(no_connect_notify) end,
+             ?assert(connected(S)),
              ok = close(S),
              receive {?MODULE, S, disconnected} -> ok
-             after 1000 -> throw(no_disconnect_notify) end
+             after 1000 -> throw(no_disconnect_notify) end,
+             ?assertNot(connected(S))
      end}.
 
 -endif.
