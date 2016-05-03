@@ -1,3 +1,14 @@
+erlang-aerospike (0.1.0) unstable; urgency=low
+
+  * implement connection pool process
+  * _socket: monitor caller process
+  * extend unit test
+  * _socket: minor fix
+  * satisfy dialyzer
+  * handle Aerospike disconnection
+
+ -- Aleksey Morarash <aleksey.morarash@gmail.com>  Tue, 03 May 2016 13:42:04 +0300
+
 erlang-aerospike (0.0.1) unstable; urgency=low
 
   * Initial release.
