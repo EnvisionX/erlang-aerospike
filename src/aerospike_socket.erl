@@ -136,8 +136,12 @@ start_link(Host, Port, Options) ->
 connected(Pid) ->
     %% It was done in such non-usual manner to not block this
     %% request if the process is busy by network transfers.
-    {dictionary, List} = process_info(Pid, dictionary),
-    lists:keyfind(connected, 1, List) /= false.
+    case process_info(Pid, dictionary) of
+        {dictionary, List} ->
+            lists:keyfind(connected, 1, List) /= false;
+        undefined ->
+            false
+    end.
 
 %% @doc Close the connection. Calling the function for already terminated
 %% process is allowed.
