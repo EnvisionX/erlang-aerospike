@@ -1,3 +1,9 @@
+erlang-aerospike (0.2.0) unstable; urgency=low
+
+  * extend info protocol with custom commands
+
+ -- Aleksey Morarash <aleksey.morarash@gmail.com>  Wed, 04 May 2016 12:34:45 +0300
+
 erlang-aerospike (0.1.0) unstable; urgency=low
 
   * implement connection pool process
