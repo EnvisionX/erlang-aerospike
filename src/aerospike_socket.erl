@@ -15,7 +15,7 @@
     connected/1,
     close/1,
     reconnect/1,
-    info/2,
+    info/3,
     msg/5
    ]).
 
@@ -157,14 +157,39 @@ reconnect(Pid) ->
     gen_server:cast(Pid, ?RECONNECT).
 
 %% @doc Return Aerospike cluster information.
--spec info(pid(), Timeout :: timeout()) ->
+-spec info(pid(), Command :: binary(), Timeout :: timeout()) ->
                   {ok, info()} | {error, Reason :: any()}.
-info(Pid, Timeout) ->
-    MsgSize = 0,
-    AerospikeRequest = <<?VERSION:8, ?AerospikeInfo:8, MsgSize:48/big-unsigned>>,
+info(Pid, Command0, Timeout) when is_binary(Command0) ->
+    Command =
+        if Command0 == <<>> ->
+                Command0;
+           true ->
+                %% add trailing new line, if not present
+                case split_binary(Command0, size(Command0) - 1) of
+                    {_, <<$\n>>} ->
+                        Command0;
+                    _ ->
+                        <<Command0/binary, $\n>>
+                end
+        end,
+    MsgSize = size(Command),
+    AerospikeRequest =
+        <<?VERSION:8, ?AerospikeInfo:8, MsgSize:48/big-unsigned,
+          Command/binary>>,
     case req(Pid, AerospikeRequest, Timeout) of
-        {ok, BinResp} ->
+        {ok, BinResp} when Command == <<>> ->
             {ok, aerospike_decoder:decode_info(BinResp)};
+        {ok, BinResp} ->
+            {ok,
+             lists:map(
+               fun(Line) ->
+                       case string:tokens(Line, "\t") of
+                           [C, Res] ->
+                               {list_to_binary(C), list_to_atom(Res)};
+                           Other ->
+                               Other
+                       end
+               end, string:tokens(binary_to_list(BinResp), "\n\r"))};
         {error, _Reason} = Error ->
             Error
     end.

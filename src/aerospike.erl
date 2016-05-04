@@ -14,7 +14,7 @@
 
 %% API exports
 -export(
-   [info/0, info/1, info/2
+   [info/0, info/1, info/2, info/3
    ]).
 
 -include("aerospike.hrl").
@@ -44,9 +44,17 @@ info(Host) ->
 -spec info(Host :: aerospike_socket:host(), Port :: inet:port_number()) ->
                   {ok, aerospike_socket:info()} | {error, Reason :: any()}.
 info(Host, Port) ->
+    info(Host, Port, <<>>).
+
+%% @doc Execute info request to Aerospike node.
+%% Will connect to the node, do request and disconnect.
+-spec info(Host :: aerospike_socket:host(), Port :: inet:port_number(),
+           Command :: binary()) ->
+                  {ok, aerospike_socket:info()} | {error, Reason :: any()}.
+info(Host, Port, Command) ->
     case aerospike_socket:start_link(Host, Port, []) of
         {ok, Socket} ->
-            Result = aerospike_socket:info(Socket, 5000),
+            Result = aerospike_socket:info(Socket, Command, 5000),
             ok = aerospike_socket:close(Socket),
             Result;
         {error, _Reason} = Error ->
