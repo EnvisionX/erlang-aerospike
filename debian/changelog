@@ -1,3 +1,13 @@
+erlang-aerospike (0.3.0) unstable; urgency=low
+
+  * implement command line tool for Aerospike info requests
+  * do not decode info responses - keep info call simple
+  * protocol minor fix
+  * improve erlang specs
+  * deploy header files with erlang application
+
+ -- Aleksey Morarash <aleksey.morarash@gmail.com>  Thu, 05 May 2016 22:37:18 +0300
+
 erlang-aerospike (0.2.0) unstable; urgency=low
 
   * extend info protocol with custom commands
