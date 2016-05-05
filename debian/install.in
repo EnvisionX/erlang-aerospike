@@ -1,2 +1,3 @@
 ebin/*.app ebin/*.beam /usr/lib/erlang/lib/aerospike-{{VERSION}}/ebin
 include/*.hrl /usr/lib/erlang/lib/aerospike-{{VERSION}}/include
+bin/aerospike-info /usr/bin

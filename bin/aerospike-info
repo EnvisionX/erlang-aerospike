@@ -1,0 +1,83 @@
+#!/usr/bin/env escript
+
+-include_lib("aerospike/include/aerospike_defaults.hrl").
+
+%% @doc Show usage synopsys and exit.
+-spec usage() -> no_return().
+usage() ->
+    Basename = escript:script_name(),
+    ok = io:format(
+           standard_error,
+           "Usage:~n"
+           "\t~s -h|--help~n"
+           "\t~s [--host host] [--port port] [command]~n",
+           [Basename, Basename]),
+    halt(1).
+
+%% @doc Entry point
+-spec main(Args :: [string()]) -> ok.
+main(Args) ->
+    Options = parse_options(Args),
+    Host = proplists:get_value(host, Options, "127.0.0.1"),
+    Port = proplists:get_value(port, Options, ?SERVER_TCP_PORT_NUMBER),
+    Command = proplists:get_value(command, Options, <<>>),
+    case aerospike:info(Host, Port, Command) of
+        {ok, Response} ->
+            ok = io:format("~s~n", [Response]),
+            halt(0);
+        {error, Reason} ->
+            err(
+              "Request to ~s:~w failed with reason:~n\t~p~n",
+              [Host, Port, Reason])
+    end.
+
+%% ----------------------------------------------------------------------
+%% Data type definitions
+%% ----------------------------------------------------------------------
+
+-type options() ::
+        [{host, nonempty_string()} |
+         {port, inet:port_number()} |
+         {command, binary()}].
+
+%% ----------------------------------------------------------------------
+%% Internal functions
+%% ----------------------------------------------------------------------
+
+%% @doc Parse command line arguments.
+-spec parse_options(Args :: [string()]) -> options().
+parse_options(["-h" | _]) ->
+    parse_options(["--help"]);
+parse_options(["--help" | _]) ->
+    usage();
+parse_options(["--host=" ++ Host | Tail]) when length(Host) > 0 ->
+    parse_options(["--host", Host | Tail]);
+parse_options(["--host", Host | Tail]) when length(Host) > 0 ->
+    [{host, Host} | parse_options(Tail)];
+parse_options(["--port=" ++ Port | Tail]) when length(Port) > 0 ->
+    parse_options(["--port", Port | Tail]);
+parse_options(["--port", PortStr | Tail]) when length(PortStr) > 0 ->
+    [{port,
+      try list_to_integer(PortStr) of
+          Port when 0 < Port, Port =< 16#ffff ->
+              Port;
+          Other ->
+              err("bad port number: `~w`", [Other])
+      catch
+          _:_ ->
+              err("bad port number: `~s`", [PortStr])
+      end} | parse_options(Tail)];
+parse_options(["--" | Tail]) ->
+    [{command, list_to_binary(string:join(Tail, " "))}];
+parse_options(["--" ++ _ | _] = Args) ->
+    err("unknown arg or option: `~s`", [Args]);
+parse_options([_ | _] = Args) ->
+    [{command, list_to_binary(string:join(Args, " "))}];
+parse_options([]) ->
+    [].
+
+%% @doc Report error and terminate.
+-spec err(Format :: string(), Args :: list()) -> no_return().
+err(Format, Args) ->
+    ok = io:format(standard_error, "Error: " ++ Format ++ "\n", Args),
+    halt(1).
