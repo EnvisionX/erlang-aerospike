@@ -56,6 +56,7 @@
     info_item_value/0,
     msg_options/0,
     msg_option/0,
+    record_ttl/0,
     flag/0
    ]).
 
@@ -68,9 +69,9 @@
 -type option() ::
         reconnect |
         sync_start |
-        {connect_timeout, non_neg_integer()} |
-        {reconnect_period, non_neg_integer()} |
-        {state_listener, pid() | atom()}.
+        {connect_timeout, Millis :: non_neg_integer()} |
+        {reconnect_period, Millis :: non_neg_integer()} |
+        {state_listener, pid() | (RegisteredName :: atom())}.
 
 -type info() :: [info_item()].
 
@@ -86,9 +87,14 @@
 
 -type msg_option() ::
         {generation, integer()} |
-        {record_ttl, integer()} |
+        {record_ttl, record_ttl()} |
         {transaction_ttl, integer()} |
         flag().
+
+-type record_ttl() ::
+        (Seconds :: pos_integer()) |
+        (UseNamespaceDefaultTTL :: 0) |
+        (DoNotExpire :: -1).
 
 -type flag() ::
         %% read flags
