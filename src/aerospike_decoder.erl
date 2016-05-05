@@ -45,7 +45,7 @@ decode(<<22:8/unsigned,
          Info1:8/unsigned, Info2:8/unsigned, Info3:8/unsigned,
          _Unused:8/unsigned, ?AS_PROTO_RESULT_OK:8/unsigned,
          CurrentGeneration:32/big-unsigned,
-         _RecordTTL:32/big-unsigned,
+         _RecordTTL:32/big-signed,
          _TransactionTTL:32/big-unsigned,
          Nfields:16/big-unsigned, Nops:16/big-unsigned,
          Payload/binary>>) ->
