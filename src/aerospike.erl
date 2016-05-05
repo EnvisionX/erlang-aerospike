@@ -50,9 +50,9 @@ info(Host, Port) ->
 %% Will connect to the node, do request and disconnect.
 -spec info(Host :: aerospike_socket:host(), Port :: inet:port_number(),
            Command :: binary()) ->
-                  {ok, aerospike_socket:info()} | {error, Reason :: any()}.
+                  {ok, Response :: binary()} | {error, Reason :: any()}.
 info(Host, Port, Command) ->
-    case aerospike_socket:start_link(Host, Port, []) of
+    case aerospike_socket:start_link(Host, Port, [reconnect, sync_start]) of
         {ok, Socket} ->
             Result = aerospike_socket:info(Socket, Command, 5000),
             ok = aerospike_socket:close(Socket),

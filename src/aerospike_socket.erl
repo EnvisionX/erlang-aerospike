@@ -51,9 +51,6 @@
    [host/0,
     options/0,
     option/0,
-    info/0,
-    info_item/0,
-    info_item_value/0,
     msg_options/0,
     msg_option/0,
     record_ttl/0,
@@ -72,16 +69,6 @@
         {connect_timeout, Millis :: non_neg_integer()} |
         {reconnect_period, Millis :: non_neg_integer()} |
         {state_listener, pid() | (RegisteredName :: atom())}.
-
--type info() :: [info_item()].
-
--type info_item() ::
-        {Key :: atom(), Value :: info_item_value()}.
-
--type info_item_value() ::
-        string() |
-        [string() | {Key :: atom(), Value :: any()}] |
-        undefined.
 
 -type msg_options() :: [msg_option()].
 
@@ -164,7 +151,7 @@ reconnect(Pid) ->
 
 %% @doc Return Aerospike cluster information.
 -spec info(pid(), Command :: binary(), Timeout :: timeout()) ->
-                  {ok, info()} | {error, Reason :: any()}.
+                  {ok, Response :: binary()} | {error, Reason :: any()}.
 info(Pid, Command0, Timeout) when is_binary(Command0) ->
     Command =
         if Command0 == <<>> ->
@@ -183,19 +170,8 @@ info(Pid, Command0, Timeout) when is_binary(Command0) ->
         <<?VERSION:8, ?AerospikeInfo:8, MsgSize:48/big-unsigned,
           Command/binary>>,
     case req(Pid, AerospikeRequest, Timeout) of
-        {ok, BinResp} when Command == <<>> ->
-            {ok, aerospike_decoder:decode_info(BinResp)};
         {ok, BinResp} ->
-            {ok,
-             lists:map(
-               fun(Line) ->
-                       case string:tokens(Line, "\t") of
-                           [C, Res] ->
-                               {list_to_binary(C), list_to_atom(Res)};
-                           Other ->
-                               Other
-                       end
-               end, string:tokens(binary_to_list(BinResp), "\n\r"))};
+            {ok, BinResp};
         {error, _Reason} = Error ->
             Error
     end.

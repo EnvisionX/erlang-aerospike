@@ -8,7 +8,7 @@
 -module(aerospike_decoder).
 
 %% API exports
--export([decode_info/1, decode/1]).
+-export([decode/1]).
 
 -include("aerospike.hrl").
 -include("aerospike_defaults.hrl").
@@ -17,22 +17,6 @@
 %% ----------------------------------------------------------------------
 %% API functions
 %% ----------------------------------------------------------------------
-
-%% @doc Decode Aerospike info message.
--spec decode_info(Encoded :: binary()) -> aerospike_socket:info().
-decode_info(Encoded) ->
-    lists:map(
-      fun(Line) ->
-              [StrKey | Values] = string:tokens(Line, "\t"),
-              Key = list_to_atom(StrKey),
-              {Key,
-               case Values of
-                   [] ->
-                       undefined;
-                   [Value | _] ->
-                       decode_info(Key, Value)
-               end}
-      end, string:tokens(binary_to_list(Encoded), "\n\r")).
 
 %% @doc Decode Aerospike message.
 -spec decode(Encoded :: binary()) ->
@@ -84,49 +68,6 @@ decode(Response) ->
 %% ----------------------------------------------------------------------
 %% Internal functions
 %% ----------------------------------------------------------------------
-
-%% @doc Decode info message item.
-%% Helper for the info/2 API call.
--spec decode_info(Key :: atom(), EncodedValue :: string()) -> any().
-decode_info(features, Encoded) ->
-    string:tokens(Encoded, ";");
-decode_info(statistics, Encoded) ->
-    lists:map(
-      fun(EncodedPair) ->
-              case string:tokens(EncodedPair, "=") of
-                  [StrKey, Value] ->
-                      Key = list_to_atom(StrKey),
-                      {Key, decode_info_statistics(Key, Value)};
-                  [StrKey] ->
-                      {list_to_atom(StrKey), undefined}
-              end
-      end, string:tokens(Encoded, ";"));
-decode_info('partition-generation', Encoded) ->
-    list_to_integer(Encoded);
-decode_info('cluster-generation', Encoded) ->
-    list_to_integer(Encoded);
-decode_info(_Key, Value) ->
-    Value.
-
-%% @doc Decode info statistics item.
--spec decode_info_statistics(Key :: atom(), Encoded :: string()) -> any().
-decode_info_statistics(cluster_key, Encoded) ->
-    Encoded;
-decode_info_statistics(paxos_principal, Encoded) ->
-    Encoded;
-decode_info_statistics(batch_index_queue, Encoded) ->
-    Encoded;
-decode_info_statistics(cluster_integrity, Encoded) ->
-    list_to_atom(Encoded);
-decode_info_statistics(system_swapping, Encoded) ->
-    list_to_atom(Encoded);
-decode_info_statistics(_Key, Encoded) ->
-    try
-        list_to_integer(Encoded)
-    catch
-        _:_ ->
-            Encoded
-    end.
 
 %% @doc
 -spec decode_flags(Packed :: 0..16#ff, Spec :: list()) ->
