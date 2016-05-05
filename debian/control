@@ -15,11 +15,6 @@ Depends: erlang-base
 Description: Erlang client for the Aerospike
  Erlang client for the Aerospike.
 
-Package: erlang-aerospike-dev
-Architecture: all
-Description: Header files with Aerospike protocol definitions
- Header files with Aerospike protocol definitions.
-
 Package: erlang-aerospike-doc
 Architecture: all
 Description: Aerospike Erlang client documentation.
