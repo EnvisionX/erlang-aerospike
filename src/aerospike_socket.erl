@@ -16,6 +16,7 @@
     close/1,
     reconnect/1,
     info/3,
+    info_namespace/3,
     msg/5
    ]).
 
@@ -172,6 +173,25 @@ info(Pid, Command0, Timeout) when is_binary(Command0) ->
     case req(Pid, AerospikeRequest, Timeout) of
         {ok, BinResp} ->
             {ok, BinResp};
+        {error, _Reason} = Error ->
+            Error
+    end.
+
+%% @doc Return namespace statistics.
+-spec info_namespace(pid(), Namespace :: binary(), Timeout :: timeout()) ->
+                            {ok, [proplists:property()]} | {error, Reason :: any()}.
+info_namespace(Pid, Namespace, Timeout) ->
+    case info(Pid, <<"namespace/", Namespace/binary>>, Timeout) of
+        {ok, Response} ->
+            [Line | _] = string:tokens(binary_to_list(Response), "\n\r"),
+            [_Command, Value] = string:tokens(Line, "\t"),
+            {ok,
+             lists:sort(
+               lists:map(
+                 fun(Item) ->
+                         [K, V] = string:tokens(Item, "="),
+                         {K, V}
+                 end, string:tokens(Value, ";")))};
         {error, _Reason} = Error ->
             Error
     end.
