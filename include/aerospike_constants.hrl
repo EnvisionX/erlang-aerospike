@@ -28,11 +28,11 @@
 
 -define(
    info1weights,
-   [{read, 1},
-    {get_all, 2},
-    {batch, 4},
-    {xdr, 16},
-    {nobindata, 32},
+   [{read, ?AS_MSG_INFO1_READ},
+    {get_all, ?AS_MSG_INFO1_GET_ALL},
+    {batch, ?AS_MSG_INFO1_BATCH},
+    {xdr, ?AS_MSG_INFO1_XDR},
+    {nobindata, ?AS_MSG_INFO1_NOBINDATA},
     {read_consistency_level_all, 64}
    ]).
 
@@ -48,13 +48,13 @@
 
 -define(
    info2weights,
-   [{write, 1},
-    {delete, 2},
-    {generation, 4},
-    {generation_gt, 8},
-    {create_only, 32},
-    {bin_create_only, 64},
-    {respond_all_ops, 128}
+   [{write, ?AS_MSG_INFO2_WRITE},
+    {delete, ?AS_MSG_INFO2_DELETE},
+    {generation, ?AS_MSG_INFO2_GENERATION},
+    {generation_gt, ?AS_MSG_INFO2_GENERATION_GT},
+    {create_only, ?AS_MSG_INFO2_CREATE_ONLY},
+    {bin_create_only, ?AS_MSG_INFO2_BIN_CREATE_ONLY},
+    {respond_all_ops, ?AS_MSG_INFO2_RESPOND_ALL_OPS}
    ]).
 
 %% Info3 flags
@@ -70,12 +70,12 @@
 
 -define(
    info3weights,
-   [{last, 1},
+   [{last, ?AS_MSG_INFO3_LAST},
     {write_commit_level_master, 2},
-    {update_only, 8},
-    {create_or_replace, 16},
-    {replace_only, 32},
-    {bin_replace_only, 64}
+    {update_only, ?AS_MSG_INFO3_UPDATE_ONLY},
+    {create_or_replace, ?AS_MSG_INFO3_CREATE_OR_REPLACE},
+    {replace_only, ?AS_MSG_INFO3_REPLACE_ONLY},
+    {bin_replace_only, ?AS_MSG_INFO3_BIN_REPLACE_ONLY}
    ]).
 
 %% allowed field types
