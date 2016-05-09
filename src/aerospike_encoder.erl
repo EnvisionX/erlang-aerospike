@@ -26,7 +26,13 @@ encode(Fields, Ops, Options) ->
     Info1 = encode_flags(Options, ?info1weights),
     Info2 = encode_flags(Options, ?info2weights),
     Info3 = encode_flags(Options, ?info3weights),
-    Generation = proplists:get_value(generation, Options, 0),
+    Generation =
+        case lists:keyfind(generation, 1, Options) of
+            {generation, Generation0} ->
+                Generation0;
+            false ->
+                0
+        end,
     RecordTTL = proplists:get_value(record_ttl, Options, 0),
     TransactionTTL = proplists:get_value(transaction_ttl, Options, 0),
     Nfields = length(Fields),
