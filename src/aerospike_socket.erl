@@ -183,7 +183,10 @@ info(Pid, Command0, Timeout) when is_binary(Command0) ->
           Ops :: list(),
           Options :: msg_options(),
           Timeout :: timeout()) ->
-                 {ok, Response :: any()} |
+                 {ok,
+                  Flags :: [aerospike_socket:flag()],
+                  CurrentGeneration :: integer(),
+                  Fields :: list(), Ops :: list()} |
                  {error, Reason :: any()}.
 msg(Pid, Fields, Ops, Options, Timeout) ->
     Request = aerospike_encoder:encode(Fields, Ops, Options),
