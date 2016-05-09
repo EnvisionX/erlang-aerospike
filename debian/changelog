@@ -1,3 +1,12 @@
+erlang-aerospike (0.4.0) unstable; urgency=low
+
+  * add _socket:info_namespace/3 API call
+  * fix "generation" option handling
+  * fix function spec
+  * minor fix: use existing macros instead of magic numbers
+
+ -- Aleksey Morarash <aleksey.morarash@gmail.com>  Mon, 09 May 2016 16:48:18 +0300
+
 erlang-aerospike (0.3.0) unstable; urgency=low
 
   * implement command line tool for Aerospike info requests
