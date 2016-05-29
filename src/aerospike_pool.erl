@@ -241,16 +241,23 @@ apply_hosts([{H, P, _} = Elem | T1], [{H, P} | T2]) ->
     [Elem | apply_hosts(T1, T2)];
 apply_hosts([{_H1, _P1, S1} | T1], [{H2, P2} | T2]) ->
     ok = aerospike_socket:close(S1),
-    {ok, S2} = aerospike_socket:start_link(H2, P2, [reconnect, {state_listener, self()}]),
-    [{H2, P2, S2} | apply_hosts(T1, T2)];
+    [{H2, P2, connect(H2, P2)} | apply_hosts(T1, T2)];
 apply_hosts([] = T1, [{H2, P2} | T2]) ->
-    {ok, S2} = aerospike_socket:start_link(H2, P2, [reconnect, {state_listener, self()}]),
-    [{H2, P2, S2} | apply_hosts(T1, T2)];
+    [{H2, P2, connect(H2, P2)} | apply_hosts(T1, T2)];
 apply_hosts([{_H1, _P1, S1} | T1], [] = T2) ->
     ok = aerospike_socket:close(S1),
     apply_hosts(T1, T2);
 apply_hosts([], []) ->
     [].
+
+%% @doc Spawn Aerospike connection process.
+-spec connect(aerospike_socket:host(), inet:port_number()) ->
+                     Socket :: pid().
+connect(Host, Port) ->
+    {ok, Socket} =
+        aerospike_socket:start_link(
+          Host, Port, [reconnect, {state_listener, self()}]),
+    Socket.
 
 %% @doc
 -spec reconfig_period(options()) -> Millis :: integer().
