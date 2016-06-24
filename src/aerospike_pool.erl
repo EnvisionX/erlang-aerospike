@@ -113,7 +113,7 @@ close(PoolRef) ->
 
 %% @doc Return Aerospike cluster information.
 -spec info(PoolRef :: pool_ref(), Timeout :: timeout()) ->
-                  {ok, aerospike_socket:info()} | {error, Reason :: any()}.
+                  {ok, Response :: binary()} | {error, Reason :: any()}.
 info(PoolRef, Timeout) ->
     req_loop(
       active_workers(PoolRef),
@@ -128,7 +128,11 @@ info(PoolRef, Timeout) ->
           Ops :: list(),
           Options :: aerospike_socket:msg_options(),
           Timeout :: timeout()) ->
-                 {ok, Response :: any()} | {error, Reason :: any()}.
+                 {ok,
+                  Flags :: [aerospike_socket:flag()],
+                  CurrentGeneration :: integer(),
+                  Fields :: list(), Ops :: list()} |
+                 {error, Reason :: any()}.
 msg(PoolRef, Fields, Ops, Options, Timeout) ->
     req_loop(
       active_workers(PoolRef),
