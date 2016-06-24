@@ -1,3 +1,13 @@
+erlang-aerospike (0.5.0) unstable; urgency=low
+
+  * pool: fix specs
+  * pool: minor optimization for internal state
+  * pool: optimize load balancing
+  * pool: specs fix
+  * pool: start new connections in a separate function
+
+ -- Aleksey Morarash <aleksey.morarash@gmail.com>  Fri, 24 Jun 2016 22:08:43 +0300
+
 erlang-aerospike (0.4.0) unstable; urgency=low
 
   * add _socket:info_namespace/3 API call
