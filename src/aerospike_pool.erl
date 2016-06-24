@@ -145,7 +145,7 @@ msg(PoolRef, Fields, Ops, Options, Timeout) ->
    {options :: options(),
     hosts = [] :: [{aerospike_socket:host(), inet:port_number(),
                     Worker :: pid()}],
-    active = sets:new() :: sets:set(ConnectedWorker :: pid())
+    active = [] :: [ConnectedWorker :: pid()]
    }).
 
 %% @hidden
@@ -194,16 +194,16 @@ handle_info(?SIG_CLOSE, State) ->
 handle_info({aerospike_socket, PID, Status}, State) ->
     Active = State#state.active,
     NewStatus = Status == connected,
-    OldStatus = sets:is_element(PID, Active),
+    OldStatus = lists:member(PID, Active),
     if OldStatus /= NewStatus ->
             NewActive =
                 if NewStatus ->
-                        sets:add_element(PID, Active);
+                        [PID | Active];
                    true ->
-                        sets:del_element(PID, Active)
+                        Active -- [PID]
                 end,
             true = ets:update_element(
-                     get(iterator), pool, {2, sets:to_list(NewActive)}),
+                     get(iterator), pool, {2, NewActive}),
             {noreply, State#state{active = NewActive}};
        true ->
             {noreply, State}
