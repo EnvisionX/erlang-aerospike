@@ -13,7 +13,7 @@
 -export(
    [start_link/2,
     set_hosts/2,
-    next/1,
+    active_workers/1,
     connected/1,
     close/1,
     info/2,
@@ -35,8 +35,6 @@
 
 %% to tell the client to close the connection and exit
 -define(SIG_CLOSE, close).
--define(SIG_NEXT, next).
--define(SIG_CONNECTED, connected).
 -define(SIG_RECONFIG, reconfig).
 -define(SIG_HOSTS(Hosts), {hosts, Hosts}).
 
@@ -79,16 +77,32 @@ start_link(Hosts, Options) ->
 set_hosts(PoolPID, NewHosts) ->
     ok = gen_server:cast(PoolPID, ?SIG_HOSTS(NewHosts)).
 
-%% @doc Get next active connection.
--spec next(PoolRef :: pool_ref()) -> {ok, ConnPID :: pid()} | not_connected.
-next(PoolRef) ->
-    gen_server:call(PoolRef, ?SIG_NEXT).
+%% @doc Fetch PID list for active workers.
+-spec active_workers(pool_ref()) -> [pid()].
+active_workers(PoolRef) ->
+    PoolPID =
+        if is_atom(PoolRef) ->
+                whereis(PoolRef);
+           true ->
+                PoolRef
+        end,
+    if is_pid(PoolPID) ->
+            {dictionary, List} = process_info(PoolPID, dictionary),
+            case lists:keyfind(iterator, 1, List) of
+                {iterator, ETS} ->
+                    ets:lookup_element(ETS, pool, 2);
+                false ->
+                    []
+            end;
+       true ->
+            []
+    end.
 
 %% @doc Return 'true' if at least one connection is established
 %% and 'false' otherwise.
 -spec connected(PoolRef :: pool_ref()) -> boolean().
 connected(PoolRef) ->
-    gen_server:call(PoolRef, ?SIG_CONNECTED).
+    [] /= active_workers(PoolRef).
 
 %% @doc Close the connection pool. Calling the function for already terminated
 %% process is allowed.
@@ -101,12 +115,11 @@ close(PoolRef) ->
 -spec info(PoolRef :: pool_ref(), Timeout :: timeout()) ->
                   {ok, aerospike_socket:info()} | {error, Reason :: any()}.
 info(PoolRef, Timeout) ->
-    case next(PoolRef) of
-        {ok, Socket} ->
-            aerospike_socket:info(Socket, Timeout);
-        not_connected = Reason ->
-            {error, Reason}
-    end.
+    req_loop(
+      active_workers(PoolRef),
+      fun(Worker) ->
+              aerospike_socket:info(Worker, Timeout)
+      end).
 
 %% @doc Send AerospikeMessage (AS_MSG) request to the Aerospike node,
 %% receive and decode response.
@@ -117,12 +130,11 @@ info(PoolRef, Timeout) ->
           Timeout :: timeout()) ->
                  {ok, Response :: any()} | {error, Reason :: any()}.
 msg(PoolRef, Fields, Ops, Options, Timeout) ->
-    case next(PoolRef) of
-        {ok, Socket} ->
-            aerospike_socket:msg(Socket, Fields, Ops, Options, Timeout);
-        not_connected = Reason ->
-            {error, Reason}
-    end.
+    req_loop(
+      active_workers(PoolRef),
+      fun(Worker) ->
+              aerospike_socket:msg(Worker, Fields, Ops, Options, Timeout)
+      end).
 
 %% ----------------------------------------------------------------------
 %% gen_server callbacks
@@ -133,8 +145,7 @@ msg(PoolRef, Fields, Ops, Options, Timeout) ->
    {options :: options(),
     hosts = [] :: [{aerospike_socket:host(), inet:port_number(),
                     Worker :: pid()}],
-    active = sets:new() :: sets:set(ConnectedWorker :: pid()),
-    queue = [] :: [ConnectedWorker :: pid()]
+    active = sets:new() :: sets:set(ConnectedWorker :: pid())
    }).
 
 %% @hidden
@@ -150,6 +161,8 @@ init({Hosts0, Options}) ->
         false ->
             ok
     end,
+    undefined = put(iterator, ets:new(?MODULE, [])),
+    true = ets:insert(get(iterator), {pool, []}),
     Hosts = apply_hosts([], Hosts0),
     case proplists:is_defined(configurator, Options) of
         true ->
@@ -179,13 +192,22 @@ handle_info(?SIG_CLOSE, State) ->
     _NewHosts = apply_hosts(State#state.hosts, []),
     {stop, normal, State};
 handle_info({aerospike_socket, PID, Status}, State) ->
-    NewActive =
-        if Status == connected ->
-                sets:add_element(PID, State#state.active);
-           true ->
-                sets:del_element(PID, State#state.active)
-        end,
-    {noreply, State#state{active = NewActive, queue = []}};
+    Active = State#state.active,
+    NewStatus = Status == connected,
+    OldStatus = sets:is_element(PID, Active),
+    if OldStatus /= NewStatus ->
+            NewActive =
+                if NewStatus ->
+                        sets:add_element(PID, Active);
+                   true ->
+                        sets:del_element(PID, Active)
+                end,
+            true = ets:update_element(
+                     get(iterator), pool, {2, sets:to_list(NewActive)}),
+            {noreply, State#state{active = NewActive}};
+       true ->
+            {noreply, State}
+    end;
 handle_info(?SIG_RECONFIG, State) ->
     Options = State#state.options,
     case lists:keyfind(configurator, 1, Options) of
@@ -204,17 +226,6 @@ handle_info(_Request, State) ->
 -spec handle_call(Request :: any(), From :: any(), State :: #state{}) ->
                          {reply, Reply :: any(), NewState :: #state{}} |
                          {noreply, NewState :: #state{}}.
-handle_call(?SIG_NEXT, _From, #state{queue = [Next | Tail]} = State) ->
-    {reply, {ok, Next}, State#state{queue = Tail}};
-handle_call(?SIG_NEXT, _From, State) ->
-    case sets:to_list(State#state.active) of
-        [Next | Tail] ->
-            {reply, {ok, Next}, State#state{queue = Tail}};
-        [] ->
-            {reply, not_connected, State}
-    end;
-handle_call(?SIG_CONNECTED, _From, State) ->
-    {reply, sets:size(State#state.active) > 0, State};
 handle_call(_Request, _From, State) ->
     ?trace("unknown call from ~w:~n\t~p", [_From, _Request]),
     {noreply, State}.
@@ -269,3 +280,109 @@ connect(Host, Port) ->
 reconfig_period(Options) ->
     Seconds = proplists:get_value(configure_period, Options, 15),
     round(Seconds * 1000).
+
+%% @doc Helper for the info/2 and msg/5 API functions.
+%% Iterate over all active workers, doing failover on some errors.
+-spec req_loop(ActiveWorkers :: [pid()],
+               Task :: fun((Worker :: pid()) ->
+                                  {ok, any()} | {error, Reason :: any()})) ->
+                      Result :: any() | {error, Reason :: any()}.
+req_loop([], _Task) ->
+    {error, not_connected};
+req_loop(Workers, Task) ->
+    {Worker, TailWorkers} = pop_random(Workers),
+    case Task(Worker) of
+        {error, _Reason} = Error when TailWorkers == [] ->
+            Error;
+        {error, not_connected} ->
+            req_loop(TailWorkers, Task);
+        {error, closed} ->
+            req_loop(TailWorkers, Task);
+        {error, [{code, ?AS_PROTO_RESULT_FAIL_UNAVAILABLE} | _]} ->
+            %% Server is not accepting requests. Occur during
+            %% single node on a quick restart to join existing cluster.
+            req_loop(TailWorkers, Task);
+        {error, _Reason} = Error ->
+            Error;
+        Result ->
+            Result
+    end.
+
+%% @doc Pop random element from the list. Return the element and new
+%% list without fetched element.
+-spec pop_random(list(A :: any())) -> {A :: any(), NewList :: list(A :: any())}.
+pop_random([Elem]) ->
+    {Elem, []};
+pop_random(List) ->
+    %% initialize RNG, if not yet
+    case get(random_seed) of
+        undefined ->
+            undefined = random:seed(os:timestamp());
+        _Seed ->
+            undefined
+    end,
+    {List1, [Elem | List2]} = lists:split(random:uniform(length(List)) - 1, List),
+    {Elem, List1 ++ List2}.
+
+%% ----------------------------------------------------------------------
+%% Unit tests
+%% ----------------------------------------------------------------------
+
+-ifdef(TEST).
+
+req_loop_test_() ->
+    ?_assertMatch(
+       {error, not_connected},
+       req_loop([], fun(_) -> {ok, ok} end)).
+
+req_loop_failover_1_test() ->
+    lists:foreach(
+      fun(_) ->
+              ?assertMatch(
+                 ok,
+                 req_loop(
+                   [1, 2, 3, 4],
+                   fun(1) ->
+                           {error, not_connected};
+                      (2) ->
+                           {error, closed};
+                      (3) ->
+                           {error, [{code, ?AS_PROTO_RESULT_FAIL_UNAVAILABLE}]};
+                      (4) ->
+                           ok
+                   end))
+      end, lists:seq(1, 10000)).
+
+req_loop_failover_2_test() ->
+    lists:foreach(
+      fun(_) ->
+              ?assertMatch(
+                 {error, myreason},
+                 req_loop(
+                   [1, 2, 3, 4],
+                   fun(1) ->
+                           {error, not_connected};
+                      (2) ->
+                           {error, closed};
+                      (3) ->
+                           {error, [{code, ?AS_PROTO_RESULT_FAIL_UNAVAILABLE}]};
+                      (4) ->
+                           {error, myreason}
+                   end))
+      end, lists:seq(1, 10000)).
+
+pop_random_test() ->
+    List = lists:seq(1, 10000),
+    {[], Shuffled} =
+        lists:foldl(
+          fun(_, {L, Fetched}) ->
+                  {Elem, Tail} = pop_random(L),
+                  {Tail, [Elem | Fetched]}
+          end, {List, []}, List),
+    ?assert(List /= Shuffled),
+    ?assert(List /= lists:reverse(Shuffled)),
+    ?assert(length(List) == length(Shuffled)),
+    ?assert(List == lists:sort(Shuffled)),
+    ?assert(List == lists:usort(Shuffled)).
+
+-endif.
