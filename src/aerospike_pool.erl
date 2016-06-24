@@ -47,7 +47,8 @@
 -export_types(
    [hosts/0,
     options/0,
-    option/0
+    option/0,
+    pool_ref/0
    ]).
 
 -type hosts() :: [{aerospike_socket:host(), inet:port_number()}].
@@ -58,6 +59,10 @@
         {name, RegisteredName :: atom()} |
         {configure_period, Seconds :: number()} |
         {configurator, fun(() -> hosts())}.
+
+-type pool_ref() ::
+        pid() |
+        (RegisteredName :: atom()).
 
 %% --------------------------------------------------------------------
 %% API functions
@@ -75,28 +80,28 @@ set_hosts(PoolPID, NewHosts) ->
     ok = gen_server:cast(PoolPID, ?SIG_HOSTS(NewHosts)).
 
 %% @doc Get next active connection.
--spec next(PoolPID :: pid()) -> {ok, ConnPID :: pid()} | not_connected.
-next(PoolPID) ->
-    gen_server:call(PoolPID, ?SIG_NEXT).
+-spec next(PoolRef :: pool_ref()) -> {ok, ConnPID :: pid()} | not_connected.
+next(PoolRef) ->
+    gen_server:call(PoolRef, ?SIG_NEXT).
 
 %% @doc Return 'true' if at least one connection is established
 %% and 'false' otherwise.
--spec connected(PoolPID :: pid()) -> boolean().
-connected(PoolPID) ->
-    gen_server:call(PoolPID, ?SIG_CONNECTED).
+-spec connected(PoolRef :: pool_ref()) -> boolean().
+connected(PoolRef) ->
+    gen_server:call(PoolRef, ?SIG_CONNECTED).
 
 %% @doc Close the connection pool. Calling the function for already terminated
 %% process is allowed.
--spec close(PoolPID :: pid()) -> ok.
-close(PoolPID) ->
-    _Sent = PoolPID ! ?SIG_CLOSE,
+-spec close(PoolRef :: pool_ref()) -> ok.
+close(PoolRef) ->
+    _Sent = PoolRef ! ?SIG_CLOSE,
     ok.
 
 %% @doc Return Aerospike cluster information.
--spec info(PoolPID :: pid(), Timeout :: timeout()) ->
+-spec info(PoolRef :: pool_ref(), Timeout :: timeout()) ->
                   {ok, aerospike_socket:info()} | {error, Reason :: any()}.
-info(PoolPID, Timeout) ->
-    case next(PoolPID) of
+info(PoolRef, Timeout) ->
+    case next(PoolRef) of
         {ok, Socket} ->
             aerospike_socket:info(Socket, Timeout);
         not_connected = Reason ->
@@ -105,14 +110,14 @@ info(PoolPID, Timeout) ->
 
 %% @doc Send AerospikeMessage (AS_MSG) request to the Aerospike node,
 %% receive and decode response.
--spec msg(PoolPID :: pid(),
+-spec msg(PoolRef :: pool_ref(),
           Fields :: list(),
           Ops :: list(),
           Options :: aerospike_socket:msg_options(),
           Timeout :: timeout()) ->
                  {ok, Response :: any()} | {error, Reason :: any()}.
-msg(PoolPID, Fields, Ops, Options, Timeout) ->
-    case next(PoolPID) of
+msg(PoolRef, Fields, Ops, Options, Timeout) ->
+    case next(PoolRef) of
         {ok, Socket} ->
             aerospike_socket:msg(Socket, Fields, Ops, Options, Timeout);
         not_connected = Reason ->
